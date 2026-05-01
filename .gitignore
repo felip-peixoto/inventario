@@ -1,0 +1,21 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+dist/
+build/
+*.egg-info/
+
+# PlatformIO build artifacts
+firmware/.pio/
+firmware/.pioenvs/
+
+# OS
+.DS_Store
+Thumbs.db
