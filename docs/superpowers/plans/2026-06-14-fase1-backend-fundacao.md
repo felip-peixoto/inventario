@@ -1,16 +1,18 @@
-# Fase 1 — Backend: Fundação e Domínio de Inventário — Implementation Plan
+# Fase 1 — Backend Dockerizado: Fundação e Domínio de Inventário — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
 > **Commits são do usuário:** os passos "Commit" mostram a mensagem sugerida, mas **quem roda `git commit` é o usuário**. Ao chegar num passo de commit, faça o `git add` proposto, pare e ofereça a mensagem — não commite sozinho.
+>
+> **Tudo roda dentro do Docker:** o host não tem `pip`/`venv`. A Tarefa 1 cria a fundação Docker; todas as tarefas seguintes constroem e testam **dentro do container** (`docker compose run --rm backend pytest`). Nada de Python é instalado no host.
 
-**Goal:** Estabelecer o backend Python (FastAPI-ready) com a lógica de domínio do inventário testada (estabilização de peso e reconciliação por peso → movimento pendente), os modelos SQLModel e o schema do banco via Alembic.
+**Goal:** Estabelecer a fundação Docker (Postgres + container de backend Python) e, dentro dela, a lógica de domínio do inventário testada (estabilização de peso e reconciliação por peso → movimento pendente), os modelos SQLModel e o schema do banco via Alembic.
 
-**Architecture:** Backend em `app/backend`, pacote `inventario` sob `src/`. A lógica de negócio é **pura** (sem I/O, sem hardware, sem HTTP) em `domain/`, totalmente testável com pytest. Os modelos SQLModel espelham a DDL; o banco é criado por uma migration Alembic hand-written que reproduz exatamente a DDL v2 (com CHECK constraints, índices e trigger). Não há reorganização do frontend nem leitura serial neste plano.
+**Architecture:** `docker-compose.yml` sobe `db` (Postgres 16, com volume e healthcheck) e `backend` (imagem Python com as dependências instaladas; código entra por bind mount do repo). A lógica de negócio é **pura** em `app/backend/src/inventario/domain/`, testável com pytest. Os modelos SQLModel espelham a DDL; o banco é criado por uma migration Alembic hand-written que reproduz exatamente a DDL v2 (CHECK constraints, índices e trigger). Sem leitura serial, API ou frontend neste plano.
 
-**Tech Stack:** Python 3.11+, FastAPI (próximos planos), SQLModel, psycopg 3, Alembic, pydantic-settings, pytest. Banco PostgreSQL.
+**Tech Stack:** Docker + Docker Compose, Python 3.13 (em container), FastAPI (próximos planos), SQLModel, psycopg 3, Alembic, pydantic-settings, pytest, PostgreSQL 16.
 
-**Refinamento da spec §3.1:** o `alembic.ini` fica na raiz do repo e o `script_location` aponta para `database/migrations/` (mantém as migrations em `database/`, conforme a spec; o `env.py` adiciona `app/backend/src` ao path para importar os models). A `database/schema.sql` genérica é removida.
+**Refinamento da spec §3.1:** o `alembic.ini` fica na raiz do repo e o `script_location` aponta para `database/migrations/`; o `env.py` adiciona `app/backend/src` ao path para importar os models. A `database/schema.sql` genérica é removida. O `backend` monta o repo inteiro em `/repo` para enxergar tanto `app/backend` quanto `database/`.
 
 ---
 
@@ -18,57 +20,64 @@
 
 ```
 inventario/
-├── alembic.ini                              # NOVO — script_location = database/migrations
+├── docker-compose.yml                       # NOVO — db + backend
+├── .env                                      # NOVO — local, gitignored (credenciais/vars)
+├── .env.example                              # ATUALIZADO — Postgres local (era Supabase)
+├── alembic.ini                               # NOVO — script_location = database/migrations
 ├── database/
-│   ├── schema.sql                           # REMOVIDO (DDL genérica antiga)
-│   └── migrations/                          # NOVO — Alembic
+│   ├── schema.sql                            # REMOVIDO (DDL genérica antiga)
+│   └── migrations/                           # NOVO — Alembic
 │       ├── env.py
 │       ├── script.py.mako
 │       └── versions/0001_schema_inicial.py
 └── app/
-    └── backend/                             # NOVO (reorg de app/ flat → app/backend)
+    └── backend/                              # NOVO (reorg de app/ flat → app/backend)
+        ├── Dockerfile                        # NOVO
         ├── requirements.txt
         ├── pytest.ini
-        └── src/
-            └── inventario/
-                ├── __init__.py
-                ├── config.py                # settings via env
-                ├── models.py                # SQLModel: Produto, Venda, Movimentacao
-                └── domain/
-                    ├── __init__.py
-                    ├── weight.py            # buffer de estabilização
-                    └── inventory.py         # reconciliação → PendingMovement
+        └── src/inventario/
+        │   ├── __init__.py
+        │   ├── config.py                     # settings via env
+        │   ├── models.py                     # SQLModel: Produto, Venda, Movimentacao
+        │   └── domain/
+        │       ├── __init__.py
+        │       ├── weight.py                 # buffer de estabilização
+        │       └── inventory.py              # reconciliação → PendingMovement
         └── tests/
             ├── __init__.py
             ├── test_config.py
             ├── test_weight.py
-            └── test_inventory.py
+            ├── test_inventory.py
+            └── test_models.py
 ```
 
-Responsabilidades:
-- `domain/weight.py` — só decide se o peso está estável e qual valor usar. Sem I/O.
-- `domain/inventory.py` — só calcula a reconciliação (peso → quantidade → movimento pendente). Sem I/O.
-- `models.py` — mapeamento ORM das tabelas (para os próximos planos).
-- `config.py` — lê variáveis de ambiente num objeto tipado.
-- `database/migrations/` — fonte da verdade do schema no banco.
+Comandos de referência (rodados da raiz do repo):
+- Build: `docker compose build backend`
+- Testes: `docker compose run --rm backend pytest <args>`
+- Migration: `docker compose run --rm -w /repo backend alembic upgrade head`
 
 ---
 
-## Task 1: Scaffolding do backend e dependências
+## Task 1: Fundação Docker (db + backend)
 
 **Files:**
 - Create: `app/backend/requirements.txt`
+- Create: `app/backend/Dockerfile`
 - Create: `app/backend/pytest.ini`
 - Create: `app/backend/src/inventario/__init__.py`
 - Create: `app/backend/src/inventario/domain/__init__.py`
 - Create: `app/backend/tests/__init__.py`
+- Create: `docker-compose.yml`
+- Create: `.env`
+- Modify: `.env.example`
 
-- [ ] **Step 1: Criar a estrutura de pastas e os arquivos de pacote vazios**
+- [ ] **Step 1: Criar a estrutura de pastas e arquivos de pacote vazios**
 
 ```bash
 cd app/backend
 mkdir -p src/inventario/domain tests
 touch src/inventario/__init__.py src/inventario/domain/__init__.py tests/__init__.py
+cd ../..
 ```
 
 - [ ] **Step 2: Criar `app/backend/requirements.txt`**
@@ -84,7 +93,7 @@ pydantic-settings==2.*
 pytest==8.*
 ```
 
-- [ ] **Step 3: Criar `app/backend/pytest.ini`** (deixa o pacote importável a partir de `src/`)
+- [ ] **Step 3: Criar `app/backend/pytest.ini`**
 
 ```ini
 [pytest]
@@ -92,27 +101,128 @@ pythonpath = src
 testpaths = tests
 ```
 
-- [ ] **Step 4: Criar e ativar o virtualenv e instalar as dependências**
+- [ ] **Step 4: Criar `app/backend/Dockerfile`**
+
+```dockerfile
+FROM python:3.13-slim
+
+WORKDIR /repo/app/backend
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Em dev o código entra por bind mount; a cópia mantém a imagem utilizável standalone.
+COPY . /repo/app/backend
+
+# Mantido vivo para `docker compose run` sobrescrever com o comando desejado.
+CMD ["sleep", "infinity"]
+```
+
+- [ ] **Step 5: Criar `docker-compose.yml` na raiz do repo**
+
+```yaml
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./app/backend
+    working_dir: /repo/app/backend
+    volumes:
+      - ./:/repo
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+```
+
+- [ ] **Step 6: Criar `.env` na raiz do repo** (gitignored)
+
+```
+POSTGRES_USER=inventario
+POSTGRES_PASSWORD=inventario
+POSTGRES_DB=inventario
+DATABASE_URL=postgresql+psycopg://inventario:inventario@db:5432/inventario
+SERIAL_PORT=/dev/ttyUSB0
+SERIAL_BAUD=115200
+WEIGHT_STABILITY_SAMPLES=3
+WEIGHT_STABILITY_TOLERANCE_G=2.0
+ROUNDING_TOLERANCE_UNITS=0.4
+EMPTY_SCALE_TOLERANCE_G=5.0
+DEVICE_TIMEOUT_S=5
+MERCADOPAGO_ACCESS_TOKEN=CHANGE_ME
+```
+
+- [ ] **Step 7: Atualizar `.env.example`** (sobrescrever o conteúdo antigo do Supabase)
+
+```
+# Banco (Postgres local containerizado)
+POSTGRES_USER=inventario
+POSTGRES_PASSWORD=troque_esta_senha
+POSTGRES_DB=inventario
+DATABASE_URL=postgresql+psycopg://inventario:troque_esta_senha@db:5432/inventario
+
+# Dispositivo serial (descubra com: ls /dev/ttyUSB* /dev/ttyACM*)
+SERIAL_PORT=/dev/ttyUSB0
+SERIAL_BAUD=115200
+
+# Lógica de inventário
+WEIGHT_STABILITY_SAMPLES=3
+WEIGHT_STABILITY_TOLERANCE_G=2.0
+ROUNDING_TOLERANCE_UNITS=0.4
+EMPTY_SCALE_TOLERANCE_G=5.0
+DEVICE_TIMEOUT_S=5
+
+# Fase 2 (PIX / Mercado Pago) — inerte na Fase 1
+MERCADOPAGO_ACCESS_TOKEN=CHANGE_ME
+```
+
+- [ ] **Step 8: Buildar a imagem do backend**
+
+Run: `docker compose build backend`
+Expected: build conclui; `pip install` instala as dependências sem erro.
+
+- [ ] **Step 9: Verificar que as dependências importam dentro do container**
 
 Run:
 ```bash
-cd app/backend
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
+docker compose run --rm backend python -c "import fastapi, sqlmodel, alembic, serial, psycopg; print('deps OK')"
 ```
-Expected: instala sem erros; `pip show sqlmodel` mostra a versão.
+Expected: imprime `deps OK` (e sobe/derruba o `db` automaticamente pela dependência).
 
-- [ ] **Step 5: Verificar que o pytest roda (sem testes ainda)**
+- [ ] **Step 10: Verificar que o Postgres sobe saudável**
 
-Run: `cd app/backend && . .venv/bin/activate && pytest`
-Expected: "no tests ran" (exit 5) — confirma que a config está válida.
+Run:
+```bash
+docker compose up -d db
+docker compose exec db pg_isready -U inventario -d inventario
+docker compose down
+```
+Expected: `accepting connections`.
 
-- [ ] **Step 6: Commit** (usuário roda)
+- [ ] **Step 11: Commit** (usuário roda)
 
 ```bash
-git add app/backend/requirements.txt app/backend/pytest.ini app/backend/src app/backend/tests
-# git commit -m "chore(backend): scaffolding do pacote inventario e dependências"
+git add app/backend/requirements.txt app/backend/Dockerfile app/backend/pytest.ini \
+        app/backend/src app/backend/tests docker-compose.yml .env.example
+# .env é gitignored — não entra
+# git commit -m "chore(infra): fundação Docker (Postgres + backend Python)"
 ```
 
 ---
@@ -139,8 +249,8 @@ def test_defaults_quando_so_database_url_e_serial_port_definidos(monkeypatch):
     assert s.weight_stability_samples == 3
     assert s.weight_stability_tolerance_g == Decimal("2.0")
     assert s.rounding_tolerance_units == Decimal("0.4")
-    assert s.device_timeout_s == 5
     assert s.empty_scale_tolerance_g == Decimal("5.0")
+    assert s.device_timeout_s == 5
 
 
 def test_le_overrides_do_ambiente(monkeypatch):
@@ -156,7 +266,7 @@ def test_le_overrides_do_ambiente(monkeypatch):
 
 - [ ] **Step 2: Rodar o teste e confirmar que falha**
 
-Run: `pytest tests/test_config.py -v`
+Run: `docker compose run --rm backend pytest tests/test_config.py -v`
 Expected: FAIL com `ModuleNotFoundError: No module named 'inventario.config'`
 
 - [ ] **Step 3: Implementar `config.py`**
@@ -185,7 +295,7 @@ class Settings(BaseSettings):
 
 - [ ] **Step 4: Rodar o teste e confirmar que passa**
 
-Run: `pytest tests/test_config.py -v`
+Run: `docker compose run --rm backend pytest tests/test_config.py -v`
 Expected: PASS (2 passed)
 
 - [ ] **Step 5: Commit** (usuário roda)
@@ -228,8 +338,7 @@ def test_estavel_quando_dentro_da_tolerancia():
     for v in ("100.0", "101.0", "100.5"):
         b.add(Decimal(v))
     assert b.is_stable() is True
-    # média das 3 leituras
-    assert b.stable_value() == Decimal("100.5")
+    assert b.stable_value() == Decimal("100.5")  # média das 3 leituras
 
 
 def test_nao_estavel_quando_uma_leitura_salta():
@@ -244,13 +353,12 @@ def test_so_considera_as_ultimas_n_leituras():
     b = make_buffer()
     for v in ("130.0", "100.0", "100.5", "101.0"):
         b.add(Decimal(v))
-    # a leitura 130.0 já saiu da janela de 3
-    assert b.is_stable() is True
+    assert b.is_stable() is True  # a leitura 130.0 já saiu da janela de 3
 ```
 
 - [ ] **Step 2: Rodar e confirmar que falha**
 
-Run: `pytest tests/test_weight.py -v`
+Run: `docker compose run --rm backend pytest tests/test_weight.py -v`
 Expected: FAIL com `ModuleNotFoundError: No module named 'inventario.domain.weight'`
 
 - [ ] **Step 3: Implementar `weight.py`**
@@ -285,7 +393,7 @@ class WeightBuffer:
 
 - [ ] **Step 4: Rodar e confirmar que passa**
 
-Run: `pytest tests/test_weight.py -v`
+Run: `docker compose run --rm backend pytest tests/test_weight.py -v`
 Expected: PASS (4 passed)
 
 - [ ] **Step 5: Commit** (usuário roda)
@@ -299,7 +407,7 @@ git add app/backend/src/inventario/domain/weight.py app/backend/tests/test_weigh
 
 ## Task 4: Domínio — reconciliação por peso (`domain/inventory.py`)
 
-Esta é a regra central da §7.3 da spec: peso estável + produto → movimento pendente.
+Regra central da §7.3 da spec: peso estável + produto → movimento pendente.
 
 **Files:**
 - Create: `app/backend/src/inventario/domain/inventory.py`
@@ -328,7 +436,7 @@ def base(**over):
 
 
 def test_entrada_gera_reposicao():
-    # (120 - 40) / 3.2 = 25 unidades; estoque 20 -> +5
+    # (120 - 40) / 3.2 = 25; estoque 20 -> +5
     r = reconcile(**base())
     assert r.status is ReconcileStatus.OK
     assert r.movement.tipo == "REPOSICAO"
@@ -338,7 +446,7 @@ def test_entrada_gera_reposicao():
 
 
 def test_saida_gera_ajuste():
-    # (110.4 - 40) / 3.2 = 22 unidades; estoque 25 -> -3
+    # (110.4 - 40) / 3.2 = 22; estoque 25 -> -3
     r = reconcile(**base(peso_g=Decimal("110.4"), estoque_disponivel=25))
     assert r.status is ReconcileStatus.OK
     assert r.movement.tipo == "AJUSTE"
@@ -376,7 +484,7 @@ def test_leitura_imprecisa():
 
 - [ ] **Step 2: Rodar e confirmar que falha**
 
-Run: `pytest tests/test_inventory.py -v`
+Run: `docker compose run --rm backend pytest tests/test_inventory.py -v`
 Expected: FAIL com `ModuleNotFoundError: No module named 'inventario.domain.inventory'`
 
 - [ ] **Step 3: Implementar `inventory.py`**
@@ -457,7 +565,7 @@ def reconcile(
 
 - [ ] **Step 4: Rodar e confirmar que passa**
 
-Run: `pytest tests/test_inventory.py -v`
+Run: `docker compose run --rm backend pytest tests/test_inventory.py -v`
 Expected: PASS (6 passed)
 
 - [ ] **Step 5: Commit** (usuário roda)
@@ -471,7 +579,7 @@ git add app/backend/src/inventario/domain/inventory.py app/backend/tests/test_in
 
 ## Task 5: Modelos SQLModel (`models.py`)
 
-Espelham a DDL v2 para uso do ORM nos próximos planos. A fonte da verdade do banco é a migration (Task 6); estes modelos devem ficar consistentes com ela.
+Espelham a DDL v2 para uso do ORM nos próximos planos. A fonte da verdade do banco é a migration (Task 6).
 
 **Files:**
 - Create: `app/backend/src/inventario/models.py`
@@ -504,7 +612,7 @@ def test_tabelas_registradas_no_metadata():
 
 - [ ] **Step 2: Rodar e confirmar que falha**
 
-Run: `pytest tests/test_models.py -v`
+Run: `docker compose run --rm backend pytest tests/test_models.py -v`
 Expected: FAIL com `ModuleNotFoundError: No module named 'inventario.models'`
 
 - [ ] **Step 3: Implementar `models.py`**
@@ -561,7 +669,7 @@ class Movimentacao(SQLModel, table=True):
 
 - [ ] **Step 4: Rodar e confirmar que passa**
 
-Run: `pytest tests/test_models.py -v`
+Run: `docker compose run --rm backend pytest tests/test_models.py -v`
 Expected: PASS (2 passed)
 
 - [ ] **Step 5: Commit** (usuário roda)
@@ -575,7 +683,7 @@ git add app/backend/src/inventario/models.py app/backend/tests/test_models.py
 
 ## Task 6: Schema do banco via Alembic + remoção da schema.sql antiga
 
-A migration é hand-written para reproduzir **exatamente** a DDL v2 (CHECK constraints, índices e trigger), que o autogenerate não capturaria.
+Migration hand-written para reproduzir **exatamente** a DDL v2 (CHECK, índices, trigger).
 
 **Files:**
 - Delete: `database/schema.sql`
@@ -593,7 +701,6 @@ git rm database/schema.sql
 - [ ] **Step 2: Criar `alembic.ini` na raiz do repo**
 
 ```ini
-# alembic.ini
 [alembic]
 script_location = database/migrations
 # DATABASE_URL é lido em env.py a partir do ambiente
@@ -804,26 +911,22 @@ def downgrade() -> None:
     )
 ```
 
-- [ ] **Step 6: Subir um Postgres descartável e aplicar a migration**
+- [ ] **Step 6: Subir o `db` e aplicar a migration dentro do container**
 
-Run (a partir da raiz do repo, com o venv ativo):
+Run (da raiz do repo):
 ```bash
-docker run --rm -d --name inv-test-db \
-  -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test \
-  -p 5433:5432 postgres:16
-sleep 3
-DATABASE_URL="postgresql+psycopg://test:test@localhost:5433/test" \
-  alembic upgrade head
+docker compose up -d db
+docker compose run --rm -w /repo backend alembic upgrade head
 ```
 Expected: log do Alembic "Running upgrade  -> 0001, schema inicial" sem erros.
 
-- [ ] **Step 7: Conferir as tabelas e a trigger e derrubar o banco de teste**
+- [ ] **Step 7: Conferir as tabelas e a trigger; depois derrubar**
 
 Run:
 ```bash
-docker exec inv-test-db psql -U test -d test -c "\dt"
-docker exec inv-test-db psql -U test -d test -c "SELECT tgname FROM pg_trigger WHERE NOT tgisinternal;"
-docker stop inv-test-db
+docker compose exec db psql -U inventario -d inventario -c "\dt"
+docker compose exec db psql -U inventario -d inventario -c "SELECT tgname FROM pg_trigger WHERE NOT tgisinternal;"
+docker compose down
 ```
 Expected: lista `produtos`, `vendas`, `movimentacoes`; trigger `trg_produtos_ts` presente.
 
@@ -840,14 +943,15 @@ git rm database/schema.sql
 ## Self-Review
 
 **1. Spec coverage (deste plano):**
-- §4 Stack (SQLModel, Alembic, psycopg) → Tasks 1, 5, 6 ✓
-- §5 Modelo de dados (DDL v2, CHECK, trigger, índices) → Task 6 (migration) + Task 5 (models) ✓
+- §3 Arquitetura (containers db + backend) → Task 1 ✓
+- §4 Stack (SQLModel, Alembic, psycopg, Docker) → Tasks 1, 5, 6 ✓
+- §5 Modelo de dados (DDL v2, CHECK, trigger, índices) → Task 6 + Task 5 ✓
 - §7.2 Estabilização do peso → Task 3 ✓
 - §7.3 Cálculo/reconciliação (entrada/saída/no-change/imprecisa/caixa fora) → Task 4 ✓
-- §11 Config via ambiente → Task 2 ✓
+- §11 Config via ambiente + `.env.example` Postgres local → Tasks 1, 2 ✓
 - §3.1 `database/` para migrations; remoção da schema.sql genérica → Task 6 ✓
-- Fora do escopo deste plano (planos 2-4): serial reader, REST/WS, confirmação transacional, frontend, docker-compose, README/.env.example. Sem lacunas dentro do escopo declarado.
+- Fora do escopo deste plano (planos seguintes): serial reader, REST/WS, confirmação transacional, frontend, README, serviço uvicorn no compose. Sem lacunas dentro do escopo declarado.
 
 **2. Placeholder scan:** nenhum TBD/TODO; todo passo de código tem o código completo. ✓
 
-**3. Type consistency:** `reconcile(...)` retorna `ReconcileResult{status, movement}`; `PendingMovement{produto_id, tipo, quantidade, peso_g, qtd_fisica, qtd_resultante}` — usado de forma idêntica nos testes (Task 4) e na implementação. `Settings` expõe os mesmos nomes consumidos por `reconcile`/`WeightBuffer` (`weight_stability_samples/tolerance_g`, `rounding_tolerance_units`, `empty_scale_tolerance_g`). `WeightBuffer(samples, tolerance_g)` consistente entre teste e implementação. ✓
+**3. Type consistency:** `reconcile(...)` → `ReconcileResult{status, movement}`; `PendingMovement{produto_id, tipo, quantidade, peso_g, qtd_fisica, qtd_resultante}` idêntico entre teste (Task 4) e implementação. `Settings` expõe os nomes consumidos (`weight_stability_*`, `rounding_tolerance_units`, `empty_scale_tolerance_g`). `WeightBuffer(samples, tolerance_g)` consistente. Nomes de env (`.env`/`.env.example`) batem com os campos de `Settings` (Task 2). ✓
