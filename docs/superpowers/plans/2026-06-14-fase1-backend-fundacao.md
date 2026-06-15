@@ -135,8 +135,8 @@ services:
       interval: 3s
       timeout: 3s
       retries: 10
-    ports:
-      - "5432:5432"
+    # Sem mapeamento de porta para o host (evita conflito com Postgres do host).
+    # O backend acessa via rede interna (db:5432). Para depurar do host: ports: ["5433:5432"]
 
   backend:
     build: ./app/backend
