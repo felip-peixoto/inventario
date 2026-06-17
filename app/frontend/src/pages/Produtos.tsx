@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react"
-import { criarProduto, listarProdutos, type NovoProduto, type Produto } from "../api"
+import {
+  ajustarEstoque,
+  criarProduto,
+  listarProdutos,
+  type NovoProduto,
+  type Produto,
+} from "../api"
 
 const vazio: NovoProduto = {
   nome: "",
@@ -22,6 +28,7 @@ const campos = [
 export function Produtos() {
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [form, setForm] = useState<NovoProduto>(vazio)
+  const [ajustes, setAjustes] = useState<Record<number, string>>({})
   const [erro, setErro] = useState<string | null>(null)
 
   async function carregar() {
@@ -48,6 +55,19 @@ export function Produtos() {
     }
   }
 
+  async function aplicarAjuste(id: number) {
+    const v = ajustes[id]
+    if (v === undefined || v === "") return
+    setErro(null)
+    try {
+      await ajustarEstoque(id, Number(v))
+      setAjustes({ ...ajustes, [id]: "" })
+      await carregar()
+    } catch (e) {
+      setErro((e as Error).message)
+    }
+  }
+
   return (
     <div className="flex flex-1 gap-4 p-4 text-sm text-slate-200">
       <div className="flex-1">
@@ -62,6 +82,7 @@ export function Produtos() {
               <th className="text-sky-300">Peso total</th>
               <th>Preço</th>
               <th>Estoque</th>
+              <th>Ajustar</th>
             </tr>
           </thead>
           <tbody>
@@ -74,11 +95,28 @@ export function Produtos() {
                 <td className="text-sky-300">{p.peso_total_g} g</td>
                 <td>R$ {p.preco_unitario}</td>
                 <td className="text-emerald-400">{p.estoque_disponivel}</td>
+                <td>
+                  <div className="flex gap-1">
+                    <input
+                      type="number"
+                      placeholder="novo"
+                      className="w-16 rounded border border-slate-600 bg-slate-900 px-1"
+                      value={ajustes[p.id] ?? ""}
+                      onChange={(e) => setAjustes({ ...ajustes, [p.id]: e.target.value })}
+                    />
+                    <button
+                      onClick={() => aplicarAjuste(p.id)}
+                      className="rounded bg-sky-600 px-2 text-xs text-white"
+                    >
+                      OK
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {produtos.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-4 opacity-50">
+                <td colSpan={8} className="py-4 opacity-50">
                   Nenhum produto ainda.
                 </td>
               </tr>
