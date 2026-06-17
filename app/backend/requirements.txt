@@ -1,0 +1,8 @@
+fastapi==0.115.*
+uvicorn[standard]==0.32.*
+sqlmodel==0.0.22
+psycopg[binary]==3.2.*
+alembic==1.13.*
+pyserial==3.5
+pydantic-settings==2.*
+pytest==8.*

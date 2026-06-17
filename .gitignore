@@ -1,2 +1,27 @@
+# Secrets
 .env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+dist/
+build/
+*.egg-info/
+
+# Node / frontend (React)
 node_modules/
+
+# PlatformIO build artifacts
+firmware/.pio/
+firmware/.pioenvs/
+
+# Superpowers / brainstorm artifacts
+.superpowers/
+
+# OS
+.DS_Store
+Thumbs.db
