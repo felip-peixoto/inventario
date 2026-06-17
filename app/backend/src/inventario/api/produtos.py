@@ -4,7 +4,8 @@ from sqlmodel import Session, select
 
 from ..db import get_session
 from ..models import Produto
-from ..schemas import ProdutoCreate, ProdutoRead, ProdutoUpdate
+from ..schemas import AjusteEstoque, MovimentacaoRead, ProdutoCreate, ProdutoRead, ProdutoUpdate
+from ..services import SemMudanca, aplicar_ajuste_estoque
 
 router = APIRouter(prefix="/produtos", tags=["produtos"])
 
@@ -59,3 +60,27 @@ def remover(produto_id: int, session: Session = Depends(get_session)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "produto não encontrado")
     session.delete(produto)
     session.commit()
+
+
+@router.post(
+    "/{produto_id}/ajustar-estoque",
+    response_model=MovimentacaoRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def ajustar_estoque(produto_id: int, dados: AjusteEstoque, session: Session = Depends(get_session)):
+    produto = session.get(Produto, produto_id)
+    if produto is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "produto não encontrado")
+    try:
+        mov = aplicar_ajuste_estoque(session, produto, dados.nova_quantidade)
+    except SemMudanca:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "estoque já está nesse valor")
+    return MovimentacaoRead(
+        id=mov.id,
+        produto_id=mov.produto_id,
+        produto_nome=produto.nome,
+        tipo=mov.tipo,
+        quantidade=mov.quantidade,
+        peso_g=mov.peso_g,
+        criado_em=mov.criado_em,
+    )

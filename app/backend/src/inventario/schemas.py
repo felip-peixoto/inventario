@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -36,3 +37,19 @@ class ProdutoRead(ProdutoBase):
     @property
     def peso_total_g(self) -> Decimal:
         return self.tara_caixa_g + self.estoque_disponivel * self.peso_unitario_g
+
+
+class AjusteEstoque(BaseModel):
+    nova_quantidade: int
+
+
+class MovimentacaoRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    produto_id: int
+    produto_nome: str
+    tipo: str
+    quantidade: int
+    peso_g: Optional[Decimal]
+    criado_em: datetime
