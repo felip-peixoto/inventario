@@ -16,8 +16,10 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     from .api.produtos import router as produtos_router
+    from .api.movimentacoes import router as movimentacoes_router
 
     app.include_router(produtos_router)
+    app.include_router(movimentacoes_router)
 
     return app
 
