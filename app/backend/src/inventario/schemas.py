@@ -53,3 +53,20 @@ class MovimentacaoRead(BaseModel):
     quantidade: int
     peso_g: Optional[Decimal]
     criado_em: datetime
+
+
+class OperacaoIn(BaseModel):
+    produto_id: int
+    peso_g: Decimal
+
+
+class OperacaoPreviewOut(BaseModel):
+    status: str  # "ok" | "empty" | "imprecise" | "no_change"
+    produto_id: int
+    produto_nome: str
+    estoque_atual: int
+    peso_g: Decimal
+    tipo: Optional[str] = None
+    quantidade: Optional[int] = None
+    qtd_fisica: Optional[int] = None
+    qtd_resultante: Optional[int] = None

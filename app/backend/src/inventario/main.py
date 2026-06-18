@@ -17,9 +17,11 @@ def create_app() -> FastAPI:
 
     from .api.produtos import router as produtos_router
     from .api.movimentacoes import router as movimentacoes_router
+    from .api.operacao import router as operacao_router
 
     app.include_router(produtos_router)
     app.include_router(movimentacoes_router)
+    app.include_router(operacao_router)
 
     return app
 
