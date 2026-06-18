@@ -72,3 +72,37 @@ export async function ajustarEstoque(produtoId: number, nova_quantidade: number)
     throw new Error(corpo.detail ?? "falha ao ajustar estoque")
   }
 }
+
+export type Preview = {
+  status: "ok" | "empty" | "imprecise" | "no_change"
+  produto_id: number
+  produto_nome: string
+  estoque_atual: number
+  peso_g: string
+  tipo: string | null
+  quantidade: number | null
+  qtd_fisica: number | null
+  qtd_resultante: number | null
+}
+
+export async function operacaoPreview(produto_id: number, peso_g: string): Promise<Preview> {
+  const r = await fetch(`${BASE}/operacao/preview`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ produto_id, peso_g }),
+  })
+  if (!r.ok) throw new Error("falha no preview")
+  return r.json()
+}
+
+export async function operacaoConfirmar(produto_id: number, peso_g: string): Promise<void> {
+  const r = await fetch(`${BASE}/operacao/confirmar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ produto_id, peso_g }),
+  })
+  if (!r.ok) {
+    const corpo = await r.json().catch(() => ({}))
+    throw new Error(corpo.detail ?? "falha ao confirmar")
+  }
+}
