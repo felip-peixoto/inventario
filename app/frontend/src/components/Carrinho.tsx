@@ -21,6 +21,7 @@ export function Carrinho() {
   const [venda, setVenda] = useState<Venda | null>(null)
   const [qrBase64, setQrBase64] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
+  const [agora, setAgora] = useState(Date.now())
   const timer = useRef<number | null>(null)
 
   async function carregarProdutos() {
@@ -49,6 +50,23 @@ export function Carrinho() {
       if (timer.current) window.clearInterval(timer.current)
     }
   }, [venda])
+
+  // relógio de 1s para o contador de expiração
+  useEffect(() => {
+    if (venda?.status !== "PENDENTE") return
+    const t = window.setInterval(() => setAgora(Date.now()), 1000)
+    return () => window.clearInterval(t)
+  }, [venda?.status])
+
+  function restante(): string {
+    if (!venda?.expira_em) return ""
+    const ms = new Date(venda.expira_em).getTime() - agora
+    if (ms <= 0) return "expirando…"
+    const s = Math.floor(ms / 1000)
+    const mm = String(Math.floor(s / 60)).padStart(2, "0")
+    const ss = String(s % 60).padStart(2, "0")
+    return `${mm}:${ss}`
+  }
 
   function adicionar() {
     if (sel === "") return
@@ -200,7 +218,7 @@ export function Carrinho() {
             {pendente && (
               <>
                 <span className="rounded-full bg-amber-900 px-2 py-0.5 text-xs text-amber-300">
-                  ● aguardando pagamento
+                  ● aguardando pagamento — expira em {restante()}
                 </span>
                 <div className="mt-1 flex gap-2">
                   <button
