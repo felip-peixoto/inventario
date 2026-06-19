@@ -106,3 +106,54 @@ export async function operacaoConfirmar(produto_id: number, peso_g: string): Pro
     throw new Error(corpo.detail ?? "falha ao confirmar")
   }
 }
+
+export type VendaItem = {
+  produto_id: number
+  produto_nome: string
+  quantidade: number
+  preco_unitario: string
+  subtotal: string
+}
+
+export type Venda = {
+  id: number
+  status: string
+  valor_total: string
+  pix_copia_e_cola: string | null
+  expira_em: string | null
+  itens: VendaItem[]
+  qr_code_base64?: string | null
+}
+
+export async function criarVenda(
+  itens: { produto_id: number; quantidade: number }[],
+): Promise<Venda> {
+  const r = await fetch(`${BASE}/vendas`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ itens }),
+  })
+  if (!r.ok) {
+    const corpo = await r.json().catch(() => ({}))
+    throw new Error(corpo.detail ?? "falha ao criar venda")
+  }
+  return r.json()
+}
+
+export async function getVenda(id: number): Promise<Venda> {
+  const r = await fetch(`${BASE}/vendas/${id}`)
+  if (!r.ok) throw new Error("falha ao consultar venda")
+  return r.json()
+}
+
+export async function pagarVenda(id: number): Promise<Venda> {
+  const r = await fetch(`${BASE}/vendas/${id}/pagamento`, { method: "POST" })
+  if (!r.ok) throw new Error("falha ao registrar pagamento")
+  return r.json()
+}
+
+export async function cancelarVenda(id: number): Promise<Venda> {
+  const r = await fetch(`${BASE}/vendas/${id}/cancelar`, { method: "POST" })
+  if (!r.ok) throw new Error("falha ao cancelar")
+  return r.json()
+}

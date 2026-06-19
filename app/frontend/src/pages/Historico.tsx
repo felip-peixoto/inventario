@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react"
 import { listarMovimentacoes, type Movimentacao } from "../api"
 
-const TIPOS = ["", "REPOSICAO", "AJUSTE"]
+const TIPOS = ["", "REPOSICAO", "AJUSTE", "RESERVA", "CONFIRMACAO", "REVERSAO"]
+
+const CORES: Record<string, string> = {
+  REPOSICAO: "bg-emerald-900 text-emerald-300",
+  CONFIRMACAO: "bg-emerald-900 text-emerald-300",
+  RESERVA: "bg-sky-900 text-sky-300",
+  AJUSTE: "bg-amber-900 text-amber-300",
+  REVERSAO: "bg-amber-900 text-amber-300",
+}
 
 function badge(tipo: string) {
-  const cor =
-    tipo === "REPOSICAO" ? "bg-emerald-900 text-emerald-300" : "bg-amber-900 text-amber-300"
+  const cor = CORES[tipo] ?? "bg-slate-700 text-slate-200"
   return <span className={`rounded-full px-2 py-0.5 text-xs ${cor}`}>{tipo}</span>
 }
 
