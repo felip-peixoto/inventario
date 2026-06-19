@@ -16,3 +16,7 @@ class Settings(BaseSettings):
     rounding_tolerance_units: Decimal = Decimal("0.4")
     empty_scale_tolerance_g: Decimal = Decimal("5.0")
     device_timeout_s: int = 5
+
+    # Pagamento (Fase 2)
+    mercadopago_access_token: str = "CHANGE_ME"
+    venda_expiracao_minutos: int = 30

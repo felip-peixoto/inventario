@@ -7,3 +7,4 @@ pyserial==3.5
 pydantic-settings==2.*
 pytest==8.*
 httpx==0.28.*
+mercadopago==2.*
