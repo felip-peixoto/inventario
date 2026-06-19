@@ -70,3 +70,33 @@ class OperacaoPreviewOut(BaseModel):
     quantidade: Optional[int] = None
     qtd_fisica: Optional[int] = None
     qtd_resultante: Optional[int] = None
+
+
+class VendaItemIn(BaseModel):
+    produto_id: int
+    quantidade: int
+
+
+class VendaCreate(BaseModel):
+    itens: list[VendaItemIn]
+
+
+class VendaItemRead(BaseModel):
+    produto_id: int
+    produto_nome: str
+    quantidade: int
+    preco_unitario: Decimal
+    subtotal: Decimal
+
+
+class VendaRead(BaseModel):
+    id: int
+    status: str
+    valor_total: Decimal
+    pix_copia_e_cola: Optional[str]
+    expira_em: Optional[datetime]
+    itens: list[VendaItemRead]
+
+
+class VendaCriadaOut(VendaRead):
+    qr_code_base64: Optional[str] = None
