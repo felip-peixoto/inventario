@@ -6,6 +6,10 @@ from typing import Protocol
 import mercadopago
 
 
+class PagamentoError(Exception):
+    """Falha ao falar com o provedor de pagamento (token inválido, indisponível, etc.)."""
+
+
 @dataclass(frozen=True)
 class PagamentoPix:
     id: str
@@ -37,8 +41,10 @@ class MercadoPago:
                 "payer": {"email": "comprador@example.com"},
             }
         )
-        dados = resp["response"]
-        tx = dados["point_of_interaction"]["transaction_data"]
+        dados = resp.get("response") or {}
+        tx = (dados.get("point_of_interaction") or {}).get("transaction_data")
+        if tx is None:
+            raise PagamentoError(dados.get("message") or "falha ao gerar o Pix no Mercado Pago")
         return PagamentoPix(
             id=str(dados["id"]),
             status=dados["status"],
@@ -49,4 +55,4 @@ class MercadoPago:
 
     def consultar_pagamento(self, pagamento_id: str) -> str:
         resp = self._sdk.payment().get(pagamento_id)
-        return resp["response"]["status"]
+        return (resp.get("response") or {}).get("status", "pending")
