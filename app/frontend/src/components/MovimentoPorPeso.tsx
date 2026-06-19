@@ -48,7 +48,7 @@ export function MovimentoPorPeso() {
   const ok = preview?.status === "ok"
 
   return (
-    <div className="w-64 shrink-0 border-r border-slate-700 p-4">
+    <div className="w-64 shrink-0 border-r border-slate-700 p-4 text-slate-200">
       <h2 className="mb-3 text-base font-bold text-white">Movimento por peso</h2>
       <label className="mb-2 block">
         <span className="mb-1 block text-xs opacity-60">Produto (tag)</span>

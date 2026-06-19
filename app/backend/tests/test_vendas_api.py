@@ -58,3 +58,11 @@ def test_get_reconcilia_aprovado(client, fake_mp):
 
 def test_get_venda_inexistente_404(client):
     assert client.get("/vendas/999").status_code == 404
+
+
+def test_criar_venda_falha_pagamento_502_nao_reserva(client, fake_mp):
+    a = _produto(client, "Refri", "A", "5.00", 8)
+    fake_mp.falhar = True
+    r = client.post("/vendas", json={"itens": [{"produto_id": a["id"], "quantidade": 3}]})
+    assert r.status_code == 502
+    assert client.get(f"/produtos/{a['id']}").json()["estoque_disponivel"] == 8

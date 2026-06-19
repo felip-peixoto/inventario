@@ -3,7 +3,7 @@ from sqlmodel import Session
 
 from ..db import get_session, settings
 from ..models import Produto, Venda
-from ..pagamentos.mercadopago import ClientePagamento, MercadoPago
+from ..pagamentos.mercadopago import ClientePagamento, MercadoPago, PagamentoError
 from ..schemas import VendaCreate, VendaCriadaOut, VendaItemRead, VendaRead
 from .. import services_venda as sv
 
@@ -57,6 +57,8 @@ def criar(dados: VendaCreate, session: Session = Depends(get_session), mp=Depend
         raise HTTPException(
             status.HTTP_409_CONFLICT, f"estoque insuficiente para o produto {e.produto_id}"
         )
+    except PagamentoError as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"pagamento indisponível: {e}")
     return _read(session, venda, qr_base64)
 
 

@@ -8,7 +8,7 @@ from sqlmodel.pool import StaticPool
 import inventario.models  # noqa: F401  (registra as tabelas no metadata)
 from inventario.db import get_session
 from inventario.main import app
-from inventario.pagamentos.mercadopago import PagamentoPix
+from inventario.pagamentos.mercadopago import PagamentoError, PagamentoPix
 
 
 class FakeMP:
@@ -16,8 +16,11 @@ class FakeMP:
 
     def __init__(self):
         self.status_consulta = "pending"
+        self.falhar = False
 
     def criar_pagamento_pix(self, valor, descricao):
+        if self.falhar:
+            raise PagamentoError("falha simulada")
         return PagamentoPix(
             id="PAY123",
             status="pending",
