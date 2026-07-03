@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 import {
   cancelarVenda,
   criarVenda,
@@ -13,7 +13,12 @@ type Linha = { produto_id: number; nome: string; preco: number; quantidade: numb
 
 const STATUS_FINAL = ["CONFIRMADO", "CANCELADO", "EXPIRADO"]
 
-export function Carrinho() {
+export type CarrinhoHandle = {
+  /** usado pela Estação de Pesagem quando uma retirada é confirmada */
+  adicionarLinha: (produtoId: number, quantidade: number) => void
+}
+
+export const Carrinho = forwardRef<CarrinhoHandle>(function Carrinho(_props, ref) {
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [sel, setSel] = useState<number | "">("")
   const [qtd, setQtd] = useState("1")
@@ -68,20 +73,29 @@ export function Carrinho() {
     return `${mm}:${ss}`
   }
 
-  function adicionar() {
-    if (sel === "") return
-    const p = produtos.find((x) => x.id === sel)!
-    const n = Number(qtd)
-    if (n <= 0) return
+  // usado tanto pelo botão "+" manual quanto pela Estação de Pesagem (via ref)
+  function adicionarLinha(produtoId: number, quantidade: number) {
+    const p = produtos.find((x) => x.id === produtoId)
+    if (!p || quantidade <= 0) return
     setLinhas((ls) => {
-      const existe = ls.find((l) => l.produto_id === p.id)
+      const existe = ls.find((l) => l.produto_id === produtoId)
       if (existe) {
         return ls.map((l) =>
-          l.produto_id === p.id ? { ...l, quantidade: l.quantidade + n } : l,
+          l.produto_id === produtoId ? { ...l, quantidade: l.quantidade + quantidade } : l,
         )
       }
-      return [...ls, { produto_id: p.id, nome: p.nome, preco: Number(p.preco_unitario), quantidade: n }]
+      return [
+        ...ls,
+        { produto_id: p.id, nome: p.nome, preco: Number(p.preco_unitario), quantidade },
+      ]
     })
+  }
+
+  useImperativeHandle(ref, () => ({ adicionarLinha }))
+
+  function adicionar() {
+    if (sel === "") return
+    adicionarLinha(Number(sel), Number(qtd))
   }
 
   function remover(id: number) {
@@ -252,4 +266,4 @@ export function Carrinho() {
       </div>
     </div>
   )
-}
+})
