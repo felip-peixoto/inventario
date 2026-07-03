@@ -21,6 +21,16 @@ export type NovoProduto = {
   estoque_disponivel: number
 }
 
+// campos editáveis de um produto existente — note que rfid_tag_id
+// propositalmente NÃO faz parte deste tipo, pois não pode ser alterado
+export type ProdutoEdicao = {
+  nome: string
+  peso_unitario_g: string
+  tara_caixa_g: string
+  preco_unitario: string
+  estoque_disponivel: number
+}
+
 export async function listarProdutos(): Promise<Produto[]> {
   const r = await fetch(`${BASE}/produtos`)
   if (!r.ok) throw new Error("falha ao listar produtos")
@@ -36,6 +46,22 @@ export async function criarProduto(p: NovoProduto): Promise<Produto> {
   if (!r.ok) {
     const corpo = await r.json().catch(() => ({}))
     throw new Error(corpo.detail ?? "falha ao criar produto")
+  }
+  return r.json()
+}
+
+export async function atualizarProduto(
+  produtoId: number,
+  dados: Partial<ProdutoEdicao>,
+): Promise<Produto> {
+  const r = await fetch(`${BASE}/produtos/${produtoId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dados),
+  })
+  if (!r.ok) {
+    const corpo = await r.json().catch(() => ({}))
+    throw new Error(corpo.detail ?? "falha ao atualizar produto")
   }
   return r.json()
 }
