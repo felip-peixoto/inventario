@@ -5,7 +5,7 @@ import json
 import logging
 from decimal import Decimal
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from sqlmodel import Session, select
 
 from ..db import engine, settings
@@ -24,7 +24,8 @@ _leitor = SerialReader(settings.serial_port, settings.serial_baud)
 # só existe uma balança física ligada por vez, então o estado da "estação
 # de pesagem" pode viver como estado de módulo mesmo
 _produto_ativo_id: int | None = None
-_buffer = WeightBuffer(settings.weight_stability_samples, settings.weight_stability_tolerance_g)
+_buffer = WeightBuffer(settings.weight_stability_samples,
+                       settings.weight_stability_tolerance_g)
 _ultimo_preview_enviado: tuple | None = None
 
 
@@ -83,12 +84,14 @@ def _on_evento_serial(evento: dict) -> None:
     if tipo_evento == "tag":
         uid = str(evento.get("uid", "")).upper()
         produto = _buscar_produto_por_tag(uid)
-        _buffer = WeightBuffer(settings.weight_stability_samples, settings.weight_stability_tolerance_g)
+        _buffer = WeightBuffer(
+            settings.weight_stability_samples, settings.weight_stability_tolerance_g)
         _ultimo_preview_enviado = None
 
         if produto is None:
             _produto_ativo_id = None
-            asyncio.create_task(_broadcast({"type": "produto_desconhecido", "uid": uid}))
+            asyncio.create_task(_broadcast(
+                {"type": "produto_desconhecido", "uid": uid}))
         else:
             _produto_ativo_id = produto.id
             asyncio.create_task(_broadcast({
@@ -101,7 +104,8 @@ def _on_evento_serial(evento: dict) -> None:
 
     if tipo_evento == "peso":
         valor = Decimal(str(evento.get("valor_g", 0)))
-        asyncio.create_task(_broadcast({"type": "peso", "valor_g": str(valor)}))
+        asyncio.create_task(_broadcast(
+            {"type": "peso", "valor_g": str(valor)}))
 
         if _produto_ativo_id is None:
             return
@@ -131,11 +135,27 @@ def iniciar_leitor_serial() -> None:
         logger.info("leitor serial conectado em %s", settings.serial_port)
     except Exception as e:
         # não derruba o backend se o ESP32 não estiver plugado durante o desenvolvimento
-        logger.warning("não foi possível abrir a porta serial (%s): %s", settings.serial_port, e)
+        logger.warning(
+            "não foi possível abrir a porta serial (%s): %s", settings.serial_port, e)
 
 
 def parar_leitor_serial() -> None:
     _leitor.parar()
+
+
+@router.post("/operacao/tarar")
+async def operacao_tarar():
+    """Zera a balança (tara), repassando o comando TARE pro ESP32 via serial.
+
+    Obs.: `_leitor` já é a instância global de SerialReader definida neste
+    módulo (é a mesma usada por `iniciar_leitor_serial`/`parar_leitor_serial`),
+    então não é necessário importá-la de novo — ela já está em escopo aqui.
+    """
+    if _leitor.connection is None or not _leitor.connection.is_open:
+        raise HTTPException(
+            status_code=503, detail="porta serial não conectada")
+    _leitor.enviar_comando("TARE")
+    return {"status": "ok"}
 
 
 @router.websocket("/ws/pesagem")

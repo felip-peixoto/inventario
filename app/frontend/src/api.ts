@@ -95,6 +95,14 @@ export async function operacaoPreview(produto_id: number, peso_g: string): Promi
   return r.json()
 }
 
+export async function zerarBalanca(): Promise<void> {
+  const r = await fetch(`${BASE}/operacao/tarar`, { method: "POST" })
+  if (!r.ok) {
+    const corpo = await r.json().catch(() => ({}))
+    throw new Error(corpo.detail ?? "falha ao zerar balança")
+  }
+}
+
 export async function operacaoConfirmar(produto_id: number, peso_g: string): Promise<void> {
   const r = await fetch(`${BASE}/operacao/confirmar`, {
     method: "POST",
